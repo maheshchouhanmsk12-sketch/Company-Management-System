@@ -28,6 +28,23 @@ if ($post_ssl !== null) {
     $db_ssl = ($db_server !== 'localhost' && $db_server !== '127.0.0.1');
 }
 
+// Support direct Aiven Service URI parsing from POST
+if (!empty($_POST['aiven_uri'])) {
+    $raw_uri = trim($_POST['aiven_uri']);
+    $clean_uri = preg_replace('#^mysql://#i', 'http://', $raw_uri);
+    $parsed = parse_url($clean_uri);
+    if ($parsed && !empty($parsed['host'])) {
+        $db_server = $parsed['host'];
+        $db_port   = isset($parsed['port']) ? (int)$parsed['port'] : 3306;
+        $db_user   = isset($parsed['user']) ? urldecode($parsed['user']) : 'avnadmin';
+        $db_pass   = isset($parsed['pass']) ? urldecode($parsed['pass']) : '';
+        if (!empty($parsed['path'])) {
+            $db_name = trim($parsed['path'], '/');
+        }
+        $db_ssl = true;
+    }
+}
+
 $action = $_POST['action'] ?? '';
 $status_msg = '';
 $status_type = 'info';
@@ -392,7 +409,24 @@ if ($action === 'import' && $connected) {
         </div>
         <div class="card-body">
             <p class="text-muted small">You can test custom credentials or use the pre-configured environment variables from Render.</p>
-            <form method="POST">
+
+            <!-- Quick Service URI Auto-Fill Box -->
+            <div class="p-3 mb-4 rounded" style="background: rgba(37, 99, 235, 0.12); border: 1px dashed #3b82f6;">
+                <label class="text-primary font-weight-bold mb-1">
+                    <i class="fas fa-magic mr-1"></i> Quick 1-Click Paste from Aiven Service URI:
+                </label>
+                <div class="input-group mb-2">
+                    <input type="text" id="aiven_uri_input" class="form-control" placeholder="mysql://avnadmin:password@mysql-xxxx.aivencloud.com:26284/defaultdb?ssl-mode=REQUIRED">
+                    <div class="input-group-append">
+                        <button type="button" class="btn btn-primary font-weight-bold" onclick="parseAivenURI()">
+                            <i class="fas fa-arrow-down mr-1"></i> Auto-Fill Fields
+                        </button>
+                    </div>
+                </div>
+                <small class="text-muted"><i class="fas fa-info-circle mr-1"></i> Aiven Console me apne service page se <strong>Service URI</strong> copy karke yahan paste karein aur "Auto-Fill" par click karein.</small>
+            </div>
+
+            <form method="POST" id="db_config_frm">
                 <div class="form-row">
                     <div class="form-group col-md-8">
                         <label>DB_SERVER (Host)</label>
@@ -434,5 +468,36 @@ if ($action === 'import' && $connected) {
     </div>
 
 </div>
+
+<script>
+function parseAivenURI(){
+    var raw = document.getElementById('aiven_uri_input').value.trim();
+    if(!raw){
+        alert('Kripya pehle apna Aiven Service URI paste karein.');
+        return;
+    }
+    try {
+        var clean = raw.replace(/^mysql:\/\//i, 'http://');
+        var u = new URL(clean);
+        var host = u.hostname;
+        var port = u.port || 3306;
+        var user = decodeURIComponent(u.username);
+        var pass = decodeURIComponent(u.password);
+        var path = u.pathname.replace(/^\//, '');
+        var db = path.split('?')[0] || 'defaultdb';
+
+        document.querySelector('input[name="db_server"]').value = host;
+        document.querySelector('input[name="db_port"]').value = port;
+        document.querySelector('input[name="db_user"]').value = user;
+        document.querySelector('input[name="db_pass"]').value = pass;
+        document.querySelector('input[name="db_name"]').value = db;
+        document.querySelector('select[name="db_ssl"]').value = 'true';
+        
+        alert('Aiven details successfully auto-filled! Ab "Test & Save Connection" par click karein.');
+    } catch(e) {
+        alert('Invalid URI format. Kripya niche diye gaye fields me manually Host, Port, User, Password bharein.');
+    }
+}
+</script>
 </body>
 </html>

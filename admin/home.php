@@ -20,13 +20,19 @@ if(isset($conn) && $conn instanceof mysqli){
 ?>
 
 <?php if(!isset($conn) || !$conn): ?>
-<div class="alert alert-warning alert-dismissible fade show shadow-sm mb-3" role="alert">
-    <h5><i class="icon fas fa-exclamation-triangle"></i> Aiven Database Setup Required!</h5>
-    Aapka Aiven Cloud MySQL database connect nahi hua hai ya tables import nahi huye hain. Default Administrator session me aap dashboard access kar pa rahe hain. Data save karne ke liye:
-    <div class="mt-2">
-        <a href="<?php echo base_url ?>db_setup.php" class="btn btn-dark btn-sm font-weight-bold">
-            <i class="fas fa-database mr-1"></i> Open 1-Click Database Setup (db_setup.php)
+<div class="alert alert-warning alert-dismissible fade show shadow-sm mb-4" role="alert" style="border-left: 5px solid #f59e0b;">
+    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+    <h5 class="font-weight-bold"><i class="icon fas fa-exclamation-triangle text-dark"></i> Aiven Database Setup Kya Hai & Isko Kaise Connect Karein?</h5>
+    <p class="mb-2">
+        Aapki website Render par successfully live run ho rahi hai aur aap Default Administrator session me hain. Lekin <strong>Aiven Cloud MySQL Database</strong> connect hona baaki hai taaki aapka naya data (services, clients, messages) cloud me permanently save ho sake.
+    </p>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+        <a href="<?php echo base_url ?>db_setup.php" target="_blank" class="btn btn-dark btn-sm font-weight-bold mr-2">
+            <i class="fas fa-database text-warning mr-1"></i> Open 1-Click Database Setup (db_setup.php)
         </a>
+        <span class="text-muted small">Aiven Console se <strong>Service URI</strong> copy karke is tool me paste karein aur 1-click me connect & import karein.</span>
     </div>
 </div>
 <?php endif; ?>
