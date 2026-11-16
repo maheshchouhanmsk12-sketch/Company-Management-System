@@ -19,12 +19,12 @@ class DBConnection{
     public $error = null;
     
     public function __construct(){
-        // Safe PHP 8.x property initialization inside constructor
-        $this->host = getenv('DB_SERVER') ?: (defined('DB_SERVER') ? DB_SERVER : 'localhost');
-        $this->port = (int)(getenv('DB_PORT') ?: (defined('DB_PORT') ? DB_PORT : 3306));
-        $this->username = getenv('DB_USERNAME') ?: (defined('DB_USERNAME') ? DB_USERNAME : 'root');
-        $this->password = getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (defined('DB_PASSWORD') ? DB_PASSWORD : '');
-        $this->database = getenv('DB_NAME') ?: (defined('DB_NAME') ? DB_NAME : 'company_website_db');
+        // Safe PHP 8.x property initialization inside constructor (supports DB_SERVER / DB_HOST, DB_USERNAME / DB_USER, DB_PASSWORD / DB_PASS)
+        $this->host = defined('DB_SERVER') ? DB_SERVER : (getenv('DB_SERVER') ?: (getenv('DB_HOST') ?: 'localhost'));
+        $this->port = (int)(defined('DB_PORT') ? DB_PORT : (getenv('DB_PORT') ?: 3306));
+        $this->username = defined('DB_USERNAME') ? DB_USERNAME : (getenv('DB_USERNAME') ?: (getenv('DB_USER') ?: 'root'));
+        $this->password = defined('DB_PASSWORD') ? DB_PASSWORD : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''));
+        $this->database = defined('DB_NAME') ? DB_NAME : (getenv('DB_NAME') ?: 'company_website_db');
         
         $env_ssl = getenv('DB_SSL');
         if($env_ssl !== false){

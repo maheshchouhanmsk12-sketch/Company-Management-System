@@ -11,11 +11,11 @@ if (file_exists(__DIR__ . '/initialize.php')) {
     require_once(__DIR__ . '/initialize.php');
 }
 
-$db_server = $_POST['db_server'] ?? (getenv('DB_SERVER') ?: (defined('DB_SERVER') ? DB_SERVER : 'localhost'));
-$db_port   = (int)($_POST['db_port'] ?? (getenv('DB_PORT') ?: (defined('DB_PORT') ? DB_PORT : 3306)));
-$db_user   = $_POST['db_user'] ?? (getenv('DB_USERNAME') ?: (defined('DB_USERNAME') ? DB_USERNAME : 'root'));
-$db_pass   = isset($_POST['db_pass']) ? $_POST['db_pass'] : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (defined('DB_PASSWORD') ? DB_PASSWORD : ''));
-$db_name   = $_POST['db_name'] ?? (getenv('DB_NAME') ?: (defined('DB_NAME') ? DB_NAME : 'company_website_db'));
+$db_server = $_POST['db_server'] ?? (defined('DB_SERVER') ? DB_SERVER : (getenv('DB_SERVER') ?: (getenv('DB_HOST') ?: 'localhost')));
+$db_port   = (int)($_POST['db_port'] ?? (defined('DB_PORT') ? DB_PORT : (getenv('DB_PORT') ?: 3306)));
+$db_user   = $_POST['db_user'] ?? (defined('DB_USERNAME') ? DB_USERNAME : (getenv('DB_USERNAME') ?: (getenv('DB_USER') ?: 'root')));
+$db_pass   = isset($_POST['db_pass']) ? $_POST['db_pass'] : (defined('DB_PASSWORD') ? DB_PASSWORD : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('DB_PASS') !== false ? getenv('DB_PASS') : '')));
+$db_name   = $_POST['db_name'] ?? (defined('DB_NAME') ? DB_NAME : (getenv('DB_NAME') ?: 'company_website_db'));
 
 $post_ssl = isset($_POST['db_ssl']) ? filter_var($_POST['db_ssl'], FILTER_VALIDATE_BOOLEAN) : null;
 if ($post_ssl !== null) {

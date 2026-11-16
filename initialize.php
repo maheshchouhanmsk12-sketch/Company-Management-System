@@ -5,11 +5,11 @@ if (file_exists(__DIR__ . '/db_credentials.php')) {
     include_once(__DIR__ . '/db_credentials.php');
 }
 
-// Environment variables support
-$db_server = defined('DB_SERVER') ? DB_SERVER : (getenv('DB_SERVER') ?: 'localhost');
+// Environment variables support (supports both DB_SERVER / DB_HOST, DB_USERNAME / DB_USER, DB_PASSWORD / DB_PASS)
+$db_server = defined('DB_SERVER') ? DB_SERVER : (getenv('DB_SERVER') ?: (getenv('DB_HOST') ?: 'localhost'));
 $db_port   = defined('DB_PORT') ? DB_PORT : (getenv('DB_PORT') ?: '3306');
-$db_user   = defined('DB_USERNAME') ? DB_USERNAME : (getenv('DB_USERNAME') ?: 'root');
-$db_pass   = defined('DB_PASSWORD') ? DB_PASSWORD : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : '');
+$db_user   = defined('DB_USERNAME') ? DB_USERNAME : (getenv('DB_USERNAME') ?: (getenv('DB_USER') ?: 'root'));
+$db_pass   = defined('DB_PASSWORD') ? DB_PASSWORD : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('DB_PASS') !== false ? getenv('DB_PASS') : ''));
 $db_name   = defined('DB_NAME') ? DB_NAME : (getenv('DB_NAME') ?: 'company_website_db');
 
 $env_ssl = getenv('DB_SSL');

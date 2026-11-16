@@ -4,3 +4,4 @@ Company_Management_System/
 *.log
 Thumbs.db
 .DS_Store
+db_credentials.php
