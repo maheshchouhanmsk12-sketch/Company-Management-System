@@ -14,8 +14,14 @@ $db = new DBConnection;
 $conn = $db->conn;
 
 function redirect($url=''){
-	if(!empty($url))
-	echo '<script>location.href="'.base_url . ltrim($url, '/').'"</script>';
+	if(!empty($url)){
+		$dest = base_url . ltrim($url, '/');
+		if(!headers_sent()){
+			header("Location: " . $dest);
+		}
+		echo '<script>location.href="'.$dest.'"</script>';
+		exit;
+	}
 }
 
 function get_banner_url(){

@@ -37,7 +37,8 @@
 				<tbody>
 					<?php
 					$i = 1;
-					$qry = $conn->query("SELECT * FROM `clients` order by company_name asc ");
+					$qry = (isset($conn) && $conn instanceof mysqli) ? @$conn->query("SELECT * FROM `clients` order by company_name asc ") : false;
+					if($qry && $qry instanceof mysqli_result):
 					while($row= $qry->fetch_assoc()):
 						$row['description'] = strip_tags(stripcslashes(html_entity_decode($row['description'])));
 					?>
@@ -59,7 +60,7 @@
 	                      </div>
 						</td>
 					</tr>	
-				<?php endwhile; ?>
+				<?php endwhile; endif; ?>
 				</tbody>
 			</table>
 		</div>

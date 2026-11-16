@@ -4,6 +4,10 @@ if(!defined('DB_SERVER')){
 }
 
 class DBConnection{
+    private static $shared_conn = null;
+    private static $connect_attempted = false;
+    private static $shared_error = null;
+
     private $host;
     private $port;
     private $username;
@@ -31,12 +35,25 @@ class DBConnection{
             $this->ssl = ($this->host !== 'localhost' && $this->host !== '127.0.0.1');
         }
 
-        if (!isset($this->conn) || !$this->conn) {
-            $this->connect();
+        // Reuse shared connection if already attempted in this request
+        if(self::$connect_attempted){
+            $this->conn = self::$shared_conn;
+            $this->error = self::$shared_error;
+            return;
         }
+
+        $this->connect();
     }
 
     public function connect(){
+        if(self::$connect_attempted){
+            $this->conn = self::$shared_conn;
+            $this->error = self::$shared_error;
+            return $this->conn;
+        }
+
+        self::$connect_attempted = true;
+
         // Disable mysqli throwing unhandled exceptions in PHP 8.1+
         mysqli_report(MYSQLI_REPORT_OFF);
 
@@ -44,10 +61,13 @@ class DBConnection{
         if(!$conn){
             $this->error = "mysqli_init failed";
             $this->conn = false;
+            self::$shared_conn = false;
+            self::$shared_error = $this->error;
             return false;
         }
 
-        $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
+        // Fast 4-second timeout to avoid page stalls if remote host is unreachable
+        $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 4);
 
         $connected = false;
         try {
@@ -56,10 +76,6 @@ class DBConnection{
                 $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
                 $flags = MYSQLI_CLIENT_SSL;
                 $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port, NULL, $flags);
-                if(!$connected){
-                    // Fallback attempt without SSL flag if provider allows
-                    $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
-                }
             } else {
                 $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
             }
@@ -72,20 +88,20 @@ class DBConnection{
             if(!$this->error) {
                 $this->error = mysqli_connect_error();
             }
-            error_log("DBConnection Error: " . $this->error);
             $this->conn = false;
+            self::$shared_conn = false;
+            self::$shared_error = $this->error;
             return false;
         }
 
         $this->conn = $conn;
         $this->conn->set_charset("utf8mb4");
+        self::$shared_conn = $this->conn;
         return $this->conn;
     }
 
     public function __destruct(){
-        if($this->conn instanceof mysqli){
-            @$this->conn->close();
-        }
+        // Do not close shared connection prematurely
     }
 }
 ?>

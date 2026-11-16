@@ -4,11 +4,14 @@
 </script>
 <?php endif;?>
 <?php 
-if(isset($_GET['id'])){
-	$qry = $conn->query("SELECT * from `services` where id = '{$_GET['id']}' ");
-	foreach($qry->fetch_array() as $k => $v){
-		if(!is_numeric($k)){
-			$$k = $v;
+if(isset($_GET['id']) && isset($conn) && $conn instanceof mysqli){
+	$safe_id = $conn->real_escape_string($_GET['id']);
+	$qry = @$conn->query("SELECT * from `services` where id = '{$safe_id}' ");
+	if($qry && $qry instanceof mysqli_result && $qry->num_rows > 0){
+		foreach($qry->fetch_array() as $k => $v){
+			if(!is_numeric($k)){
+				$$k = $v;
+			}
 		}
 	}
 }

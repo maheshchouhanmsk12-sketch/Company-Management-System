@@ -19,6 +19,18 @@ if(isset($conn) && $conn instanceof mysqli){
 }
 ?>
 
+<?php if(!isset($conn) || !$conn): ?>
+<div class="alert alert-warning alert-dismissible fade show shadow-sm mb-3" role="alert">
+    <h5><i class="icon fas fa-exclamation-triangle"></i> Aiven Database Setup Required!</h5>
+    Aapka Aiven Cloud MySQL database connect nahi hua hai ya tables import nahi huye hain. Default Administrator session me aap dashboard access kar pa rahe hain. Data save karne ke liye:
+    <div class="mt-2">
+        <a href="<?php echo base_url ?>db_setup.php" class="btn btn-dark btn-sm font-weight-bold">
+            <i class="fas fa-database mr-1"></i> Open 1-Click Database Setup (db_setup.php)
+        </a>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="row mb-3">
     <div class="col-12">
         <div class="card card-outline card-primary shadow-sm">

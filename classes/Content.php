@@ -1,5 +1,5 @@
 <?php
-require_once('../config.php');
+require_once __DIR__ . '/../config.php';
 Class Content extends DBConnection {
 	private $settings;
 	public function __construct(){
@@ -12,25 +12,30 @@ Class Content extends DBConnection {
 	}
 	public function update(){
 		extract($_POST);
-		$content_file="../".$file.".html";
+		$content_file = base_app . $file . ".html";
 		$update = file_put_contents($content_file, $content);
-		if($update){
+		if($update !== false){
+			$this->settings->set_flashdata("success", ucfirst($file) . " content successfully updated");
 			return json_encode(array("status"=>"success"));
-			$this->settings->set_flashdata("success",ucfirst($file)." content is successuly updated");
-			exit;
+		} else {
+			return json_encode(array("status"=>"failed", "message"=>"Failed to write file"));
 		}
 	}
 	public function service(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database connection is not available. Please configure Aiven DB in db_setup.php'));
+		}
 		extract($_POST);
 		$data = "";
 		foreach($_POST as $k => $v){
 			if(!in_array($k,array('id','description','old_file'))){
+				$v = $this->conn->real_escape_string($v);
 				if(!empty($data)) $data .= ", ";
 				$data .= "`$k` = '$v'";
 			}
 		}
-				if(!empty($data)) $data .= ", ";
-				$data .= "`description` = '".addslashes(htmlentities($description))."'";
+		if(!empty($data)) $data .= ", ";
+		$data .= "`description` = '".$this->conn->real_escape_string(addslashes(htmlentities($description)))."'";
 		if(isset($_FILES['img']) && !empty($_FILES['img']['tmp_name'])){
 			$fname = 'uploads/'.time().'_'.$_FILES['img']['name'];
 			$move = move_uploaded_file($_FILES['img']['tmp_name'],base_app.$fname);
@@ -41,7 +46,8 @@ Class Content extends DBConnection {
 		if(empty($id)){
 			$sql ="INSERT INTO services set $data";
 		}else{
-			$sql ="UPDATE services set $data where id = {$id}";
+			$safe_id = (int)$id;
+			$sql ="UPDATE services set $data where id = {$safe_id}";
 		}
 		$save = $this->conn->query($sql);
 		$action = empty($id) ? "added":"updated";
@@ -53,27 +59,30 @@ Class Content extends DBConnection {
 			$resp['status']='success';
 			$resp['message']= " Service Details successfully ".$action;
 			$this->settings->set_flashdata('success',$resp['message']);
-			
 		}else{
 			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['message']= " error:".$sql;
 		}
 		return json_encode($resp);
-		exit;
 	}
 	public function service_delete(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
-		$fpath = $this->conn->query("SELECT file_path FROM services where id = $id")->fetch_array()['file_path'];
-		$qry = $this->conn->query("DELETE FROM services where id = $id");
+		$safe_id = (int)$id;
+		$row = $this->conn->query("SELECT file_path FROM services where id = {$safe_id}");
+		$fpath = ($row && $row instanceof mysqli_result) ? ($row->fetch_array()['file_path'] ?? '') : '';
+		$qry = $this->conn->query("DELETE FROM services where id = {$safe_id}");
 		if($qry){
-			if(is_file(base_app.$fpath))
-					unlink(base_app.$fpath);
+			if(!empty($fpath) && is_file(base_app.$fpath))
+				unlink(base_app.$fpath);
 			$resp['status']='success';
 			$resp['message']= " Service Details successfully deleted";
 			$this->settings->set_flashdata('success',$resp['message']);
 		}else{
-			$resp['status']='Failed';
+			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['err_msg'] = " Deleting Data failed";
 		}
@@ -81,16 +90,20 @@ Class Content extends DBConnection {
 	}
 
 	public function testimonial(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
 		$data = "";
 		foreach($_POST as $k => $v){
 			if(!in_array($k,array('id','message','old_file'))){
+				$v = $this->conn->real_escape_string($v);
 				if(!empty($data)) $data .= ", ";
 				$data .= "`$k` = '$v'";
 			}
 		}
-				if(!empty($data)) $data .= ", ";
-				$data .= "`message` = '".addslashes(htmlentities($message))."'";
+		if(!empty($data)) $data .= ", ";
+		$data .= "`message` = '".$this->conn->real_escape_string(addslashes(htmlentities($message)))."'";
 		if(isset($_FILES['img']) && !empty($_FILES['img']['tmp_name'])){
 			$fname = 'uploads/'.time().'_'.$_FILES['img']['name'];
 			$move = move_uploaded_file($_FILES['img']['tmp_name'],base_app.$fname);
@@ -101,7 +114,8 @@ Class Content extends DBConnection {
 		if(empty($id)){
 			$sql ="INSERT INTO testimonials set $data";
 		}else{
-			$sql ="UPDATE testimonials set $data where id = {$id}";
+			$safe_id = (int)$id;
+			$sql ="UPDATE testimonials set $data where id = {$safe_id}";
 		}
 		$save = $this->conn->query($sql);
 		$action = empty($id) ? "added":"updated";
@@ -113,27 +127,30 @@ Class Content extends DBConnection {
 			$resp['status']='success';
 			$resp['message']= " Testimony successfully ".$action;
 			$this->settings->set_flashdata('success',$resp['message']);
-			
 		}else{
 			$resp['status']='failed';
 			$resp['message']= " error:".$sql;
 		}
 		return json_encode($resp);
-		exit;
 	}
 
 	public function testimonial_delete(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
-		$fpath = $this->conn->query("SELECT file_path FROM testimonials where id = $id")->fetch_array()['file_path'];
-		$qry = $this->conn->query("DELETE FROM testimonials where id = $id");
+		$safe_id = (int)$id;
+		$row = $this->conn->query("SELECT file_path FROM testimonials where id = {$safe_id}");
+		$fpath = ($row && $row instanceof mysqli_result) ? ($row->fetch_array()['file_path'] ?? '') : '';
+		$qry = $this->conn->query("DELETE FROM testimonials where id = {$safe_id}");
 		if($qry){
-			if(is_file(base_app.$fpath))
-					unlink(base_app.$fpath);
+			if(!empty($fpath) && is_file(base_app.$fpath))
+				unlink(base_app.$fpath);
 			$resp['status']='success';
 			$resp['message']= " Testimony successfully deleted";
 			$this->settings->set_flashdata('success',$resp['message']);
 		}else{
-			$resp['status']='success';
+			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['err_msg']= " Testimony has failed to delete";
 		}
@@ -141,29 +158,34 @@ Class Content extends DBConnection {
 	}
 
 	public function client(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
 		$data = "";
 		foreach($_POST as $k => $v){
 			if(!in_array($k,array('id','description','old_file'))){
+				$v = $this->conn->real_escape_string($v);
 				if(!empty($data)) $data .= ", ";
 				$data .= "`$k` = '$v'";
 			}
 		}
-				if(!empty($data)) $data .= ", ";
-				$data .= "`description` = '".addslashes(htmlentities($description))."'";
+		if(!empty($data)) $data .= ", ";
+		$data .= "`description` = '".$this->conn->real_escape_string(addslashes(htmlentities($description)))."'";
 
 		if(isset($_FILES['img']) && $_FILES['img']['tmp_name'] != ''){
-				$fname = 'uploads/'.strtotime(date('y-m-d H:i')).'_'.$_FILES['img']['name'];
-				$move = move_uploaded_file($_FILES['img']['tmp_name'],base_app. $fname);
-				if($move){
-					$data .=" , file_path = '{$fname}' ";
-				}
+			$fname = 'uploads/'.strtotime(date('y-m-d H:i')).'_'.$_FILES['img']['name'];
+			$move = move_uploaded_file($_FILES['img']['tmp_name'],base_app. $fname);
+			if($move){
+				$data .=" , file_path = '{$fname}' ";
+			}
 		}	
 
 		if(empty($id)){
 			$sql ="INSERT INTO clients set $data";
 		}else{
-			$sql ="UPDATE clients set $data where id = {$id}";
+			$safe_id = (int)$id;
+			$sql ="UPDATE clients set $data where id = {$safe_id}";
 		}
 		$save = $this->conn->query($sql);
 		$action = empty($id) ? "added":"updated";
@@ -175,40 +197,48 @@ Class Content extends DBConnection {
 			$resp['status']='success';
 			$resp['message']= " Client Details successfully ".$action;
 			$this->settings->set_flashdata('success',$resp['message']);
-			
 		}else{
 			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['message']= " error:".$sql;
 		}
 		return json_encode($resp);
-		exit;
 	}
 
 	public function client_delete(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
-		$fpath = $this->conn->query("SELECT file_path FROM clients where id = $id")->fetch_array()['file_path'];
-		$qry = $this->conn->query("DELETE FROM clients where id = $id");
+		$safe_id = (int)$id;
+		$row = $this->conn->query("SELECT file_path FROM clients where id = {$safe_id}");
+		$fpath = ($row && $row instanceof mysqli_result) ? ($row->fetch_array()['file_path'] ?? '') : '';
+		$qry = $this->conn->query("DELETE FROM clients where id = {$safe_id}");
 		if($qry){
-			if(is_file(base_app.$fpath))
-					unlink(base_app.$fpath);
+			if(!empty($fpath) && is_file(base_app.$fpath))
+				unlink(base_app.$fpath);
 			$resp['status']='success';
 			$resp['message']= " Client Details successfully deleted";
 			$this->settings->set_flashdata('success',$resp['message']);
 		}else{
-			$resp['status']='success';
+			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['err_msg']= " Client Details has failed to delete";
 		}
 		return json_encode($resp);
-
 	}
+
 	public function contact(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
 		$data = "";
 		foreach ($_POST as $key => $value) {
+			$k = $this->conn->real_escape_string($key);
+			$v = $this->conn->real_escape_string($value);
 			if(!empty($data)) $data .= ", ";
-				$data .= "('{$key}','{$value}')";
+			$data .= "('{$k}','{$v}')";
 		}
 		$this->conn->query("TRUNCATE `contacts`");
 		$sql = "INSERT INTO `contacts` (meta_field, meta_value) Values $data";
@@ -222,28 +252,30 @@ Class Content extends DBConnection {
 			$resp['message']= $sql;
 		}
 		return json_encode($resp);
-		exit;
 	}
+
 	public function message_delete(){
+		if(!$this->conn){
+			return json_encode(array('status'=>'failed','message'=>'Database not connected'));
+		}
 		extract($_POST);
-		$qry = $this->conn->query("DELETE FROM messages where id = $id");
+		$safe_id = (int)$id;
+		$qry = $this->conn->query("DELETE FROM messages where id = {$safe_id}");
 		if($qry){
 			$resp['status']='success';
 			$resp['message']= " Inquiry successfully deleted";
 			$this->settings->set_flashdata('success',$resp['message']);
 		}else{
-			$resp['status']='success';
+			$resp['status']='failed';
 			$resp['error']= $this->conn->error;
 			$resp['err_msg']= " Inquiry has failed to delete";
 		}
 		return json_encode($resp);
-
 	}
 }
 
 $Content = new Content();
 $action = !isset($_GET['f']) ? 'none' : strtolower($_GET['f']);
-$sysset = new SystemSettings();
 switch ($action) {
 	case 'update':
 		echo $Content->update();
@@ -273,6 +305,6 @@ switch ($action) {
 		echo $Content->contact();
 	break;
 	default:
-		// echo $sysset->index();
 		break;
 }
+?>

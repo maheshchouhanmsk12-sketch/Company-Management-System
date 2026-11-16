@@ -37,12 +37,12 @@
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link"href="<?php echo base_url.'admin/?page=system_info' ?>" role="button">
+            <a class="nav-link" href="<?php echo base_url.'admin/index.php?page=system_info' ?>" role="button" title="System Settings">
             <i class="fas fa-cog"></i>
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link"  href="javascript:void(0)" onclick="location.replace('<?php echo base_url.'/classes/Login.php?f=logout' ?>')" role="button">
+            <a class="nav-link" href="javascript:void(0)" onclick="location.replace('<?php echo base_url.'classes/Login.php?f=logout' ?>')" role="button" title="Logout">
             <i class="fas fa-sign-out-alt"></i>
             </a>
           </li>

@@ -50,7 +50,7 @@
 	            </div>
 			</div>
 			<div class="form-group d-flex justify-content-center">
-				<img src="<?php echo validate_image($_settings->info('logo')) ?>" alt="" id="cimg" class="img-fluid img-thumbnail">
+				<img src="<?php echo function_exists('get_logo_url') ? get_logo_url() : validate_image($_settings->info('logo')) ?>" alt="" id="cimg" class="img-fluid img-thumbnail">
 			</div>
 			<div class="form-group">
 				<label for="" class="control-label">Website Banner Image</label>
@@ -60,7 +60,7 @@
 	            </div>
 			</div>
 			<div class="form-group d-flex justify-content-center">
-				<img src="<?php echo validate_image($_settings->info('banner')) ?>" alt="" id="cimg2" class="img-fluid img-thumbnail">
+				<img src="<?php echo function_exists('get_banner_url') ? get_banner_url() : validate_image($_settings->info('banner')) ?>" alt="" id="cimg2" class="img-fluid img-thumbnail">
 			</div>
 
 			</form>

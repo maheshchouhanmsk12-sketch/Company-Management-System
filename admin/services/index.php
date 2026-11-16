@@ -31,7 +31,8 @@
 				<tbody>
 					<?php
 					$i = 1;
-					$qry = $conn->query("SELECT * FROM `services` order by `title` asc");
+					$qry = (isset($conn) && $conn instanceof mysqli) ? @$conn->query("SELECT * FROM `services` order by `title` asc") : false;
+					if($qry && $qry instanceof mysqli_result):
 					while($row= $qry->fetch_assoc()):
 						$desc = html_entity_decode($row['description']);
 						$dest = strip_tags($desc);
@@ -55,7 +56,7 @@
 	                      </div>
 						</td>
 					</tr>	
-				<?php endwhile; ?>
+				<?php endwhile; endif; ?>
 				</tbody>
 			</table>
 		</div>

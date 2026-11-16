@@ -86,6 +86,23 @@
                         </p>
                       </a>
                     </li>
+                    <li class="nav-header">Settings & Tools</li>
+                    <li class="nav-item dropdown">
+                      <a href="<?php echo base_url ?>admin/index.php?page=system_info" class="nav-link nav-system_info">
+                        <i class="nav-icon fas fa-cogs"></i>
+                        <p>
+                          System Settings
+                        </p>
+                      </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                      <a href="<?php echo base_url ?>db_setup.php" target="_blank" class="nav-link">
+                        <i class="nav-icon fas fa-database text-info"></i>
+                        <p>
+                          Aiven DB Setup
+                        </p>
+                      </a>
+                    </li>
                   </ul>
                 </nav>
                 <!-- /.sidebar-menu -->

@@ -4,9 +4,14 @@
 </script>
 <?php endif;?>
 <?php 
-	$qry = $conn->query("SELECT * from contacts ");
-	while($row = $qry->fetch_assoc()){
-		$meta[$row['meta_field']] = $row['meta_value'];
+	$meta = [];
+	if(isset($conn) && $conn instanceof mysqli){
+		$qry = @$conn->query("SELECT * from contacts ");
+		if($qry && $qry instanceof mysqli_result){
+			while($row = $qry->fetch_assoc()){
+				$meta[$row['meta_field']] = $row['meta_value'];
+			}
+		}
 	}
 ?>
 <div class="col-lg-12">

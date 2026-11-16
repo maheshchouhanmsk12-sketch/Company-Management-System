@@ -1,5 +1,5 @@
 <?php
-require_once('../config.php');
+require_once __DIR__ . '/../config.php';
 Class Users extends DBConnection {
 	private $settings;
 	public function __construct(){
@@ -15,63 +15,68 @@ Class Users extends DBConnection {
 		$data = '';
 		foreach($_POST as $k => $v){
 			if(!in_array($k,array('id','password'))){
+				if(isset($this->conn) && $this->conn instanceof mysqli){
+					$v = $this->conn->real_escape_string($v);
+				}
 				if(!empty($data)) $data .=" , ";
-				$data .= " {$k} = '{$v}' ";
+				$data .= " `{$k}` = '{$v}' ";
 			}
 		}
-		if(!empty($password) && !empty($id)){
+		if(!empty($password)){
 			$password = md5($password);
 			if(!empty($data)) $data .=" , ";
 			$data .= " `password` = '{$password}' ";
 		}
 
-		if(isset($_FILES['img']) && $_FILES['img']['tmp_name'] != ''){
-				$fname = 'uploads/'.strtotime(date('y-m-d H:i')).'_'.$_FILES['img']['name'];
-				$move = move_uploaded_file($_FILES['img']['tmp_name'],'../'. $fname);
-				if($move){
-					$data .=" , avatar = '{$fname}' ";
-					if(isset($_SESSION['userdata']['avatar']) && is_file('../'.$_SESSION['userdata']['avatar']))
-						unlink('../'.$_SESSION['userdata']['avatar']);
-				}
+		if(isset($_FILES['img']) && !empty($_FILES['img']['tmp_name'])){
+			$fname = 'uploads/'.strtotime(date('y-m-d H:i')).'_'.$_FILES['img']['name'];
+			$move = move_uploaded_file($_FILES['img']['tmp_name'], base_app . $fname);
+			if($move){
+				$data .=" , `avatar` = '{$fname}' ";
+				if(isset($_SESSION['userdata']['avatar']) && is_file(base_app . $_SESSION['userdata']['avatar']))
+					unlink(base_app . $_SESSION['userdata']['avatar']);
+			}
 		}
+
+		// Update in session anyway
+		foreach($_POST as $k => $v){
+			if($k != 'id' && $k != 'password'){
+				$this->settings->set_userdata($k, $v);
+			}
+		}
+		if(isset($fname) && isset($move)) {
+			$this->settings->set_userdata('avatar', $fname);
+		}
+
+		if(!$this->conn){
+			$this->settings->set_flashdata('success','Profile updated in active session (connect DB in db_setup.php to persist across restarts).');
+			return 1;
+		}
+
 		if(empty($id)){
 			$qry = $this->conn->query("INSERT INTO users set {$data}");
 			if($qry){
 				$this->settings->set_flashdata('success','User Details successfully saved.');
-				foreach($_POST as $k => $v){
-					if($k != 'id'){
-						if(!empty($data)) $data .=" , ";
-						$this->settings->set_userdata($k,$v);
-					}
-				}
 				return 1;
 			}else{
 				return 2;
 			}
-
 		}else{
-			$qry = $this->conn->query("UPDATE users set $data where id = {$id}");
+			$safe_id = (int)$id;
+			$qry = $this->conn->query("UPDATE users set {$data} where id = {$safe_id}");
 			if($qry){
 				$this->settings->set_flashdata('success','User Details successfully updated.');
-				foreach($_POST as $k => $v){
-					if($k != 'id'){
-						if(!empty($data)) $data .=" , ";
-						$this->settings->set_userdata($k,$v);
-					}
-				}
-						if(isset($fname) && isset($move))
-						$this->settings->set_userdata('avatar',$fname);
-
 				return 1;
 			}else{
-				return "UPDATE users set $data where id = {$id}";
+				return 2;
 			}
-			
 		}
 	}
 	public function delete_users(){
+		if(!$this->conn) return false;
 		extract($_POST);
-		$qry = $this->conn->query("DELETE FROM users where id = $id");
+		$safe_id = (int)$id;
+		$qry = $this->conn->query("DELETE FROM users where id = {$safe_id}");
 		if($qry){
 			$this->settings->set_flashdata('success','User Details successfully deleted.');
 			return 1;
@@ -91,6 +96,6 @@ switch ($action) {
 		echo $users->delete_users();
 	break;
 	default:
-		// echo $sysset->index();
 		break;
 }
+?>

@@ -1,7 +1,18 @@
 <?php 
-$user = $conn->query("SELECT * FROM users where id ='".$_settings->userdata('id')."'");
-foreach($user->fetch_array() as $k =>$v){
-	$meta[$k] = $v;
+$meta = [
+	'firstname' => $_settings->userdata('firstname') ?: 'Administrator',
+	'lastname' => $_settings->userdata('lastname') ?: '',
+	'username' => $_settings->userdata('username') ?: 'admin',
+	'avatar' => $_settings->userdata('avatar') ?: 'uploads/1619140500_avatar.png'
+];
+if(isset($conn) && $conn instanceof mysqli && $_settings->userdata('id')){
+	$safe_uid = $conn->real_escape_string($_settings->userdata('id'));
+	$user = @$conn->query("SELECT * FROM users where id ='{$safe_uid}'");
+	if($user && $user instanceof mysqli_result && $user->num_rows > 0){
+		foreach($user->fetch_array() as $k =>$v){
+			$meta[$k] = $v;
+		}
+	}
 }
 ?>
 <?php if($_settings->chk_flashdata('success')): ?>

@@ -33,7 +33,8 @@
 				<tbody>
 					<?php
 					$i = 1;
-					$qry = $conn->query("SELECT * FROM `messages` order by unix_timestamp(`date_created`) desc");
+					$qry = (isset($conn) && $conn instanceof mysqli) ? @$conn->query("SELECT * FROM `messages` order by unix_timestamp(`date_created`) desc") : false;
+					if($qry && $qry instanceof mysqli_result):
 					while($row= $qry->fetch_assoc()):
 					?>
 					<tr>
@@ -62,7 +63,7 @@
 	                      </div>
 						</td>
 					</tr>	
-				<?php endwhile; ?>
+				<?php endwhile; endif; ?>
 				</tbody>
 			</table>
 		</div>
