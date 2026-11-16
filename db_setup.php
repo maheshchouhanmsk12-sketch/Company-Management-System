@@ -1,0 +1,419 @@
+<?php
+/**
+ * 1-Click Aiven Cloud MySQL Database Installer & Health Check
+ * Company Management System
+ */
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Load initialization for defaults
+if (file_exists(__DIR__ . '/initialize.php')) {
+    require_once(__DIR__ . '/initialize.php');
+}
+
+$db_server = $_POST['db_server'] ?? (getenv('DB_SERVER') ?: (defined('DB_SERVER') ? DB_SERVER : 'localhost'));
+$db_port   = (int)($_POST['db_port'] ?? (getenv('DB_PORT') ?: (defined('DB_PORT') ? DB_PORT : 3306)));
+$db_user   = $_POST['db_user'] ?? (getenv('DB_USERNAME') ?: (defined('DB_USERNAME') ? DB_USERNAME : 'root'));
+$db_pass   = isset($_POST['db_pass']) ? $_POST['db_pass'] : (getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (defined('DB_PASSWORD') ? DB_PASSWORD : ''));
+$db_name   = $_POST['db_name'] ?? (getenv('DB_NAME') ?: (defined('DB_NAME') ? DB_NAME : 'company_website_db'));
+
+$post_ssl = isset($_POST['db_ssl']) ? filter_var($_POST['db_ssl'], FILTER_VALIDATE_BOOLEAN) : null;
+if ($post_ssl !== null) {
+    $db_ssl = $post_ssl;
+} elseif (getenv('DB_SSL') !== false) {
+    $db_ssl = filter_var(getenv('DB_SSL'), FILTER_VALIDATE_BOOLEAN);
+} elseif (defined('DB_SSL')) {
+    $db_ssl = (bool)DB_SSL;
+} else {
+    $db_ssl = ($db_server !== 'localhost' && $db_server !== '127.0.0.1');
+}
+
+$action = $_POST['action'] ?? '';
+$status_msg = '';
+$status_type = 'info';
+$connected = false;
+$server_info = '';
+$ssl_cipher = '';
+$existing_tables = [];
+$admin_verified = false;
+$import_stats = null;
+
+// Find SQL Dump File
+$sql_files = [
+    __DIR__ . '/database/company_website_db.sql',
+    __DIR__ . '/Company_Management_System/database/company_website_db.sql'
+];
+$sql_dump_path = null;
+foreach ($sql_files as $f) {
+    if (file_exists($f)) {
+        $sql_dump_path = $f;
+        break;
+    }
+}
+
+// Function to connect with Aiven SSL support
+function connect_db($host, $port, $user, $pass, $db, $use_ssl) {
+    $conn = mysqli_init();
+    if (!$conn) {
+        return [false, "mysqli_init() failed"];
+    }
+    $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
+    
+    if ($use_ssl) {
+        $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+        $flags = MYSQLI_CLIENT_SSL;
+        $res = @$conn->real_connect($host, $user, $pass, $db, $port, NULL, $flags);
+        if (!$res) {
+            // Fallback attempt
+            $res = @$conn->real_connect($host, $user, $pass, $db, $port);
+        }
+    } else {
+        $res = @$conn->real_connect($host, $user, $pass, $db, $port);
+    }
+    
+    if (!$res) {
+        return [false, mysqli_connect_error()];
+    }
+    $conn->set_charset("utf8mb4");
+    return [$conn, "Connected Successfully"];
+}
+
+// Attempt connection
+list($conn, $conn_err) = connect_db($db_server, $db_port, $db_user, $db_pass, $db_name, $db_ssl);
+
+if ($conn) {
+    $connected = true;
+    $server_info = $conn->server_info;
+    $ssl_res = @$conn->query("SHOW STATUS LIKE 'Ssl_cipher'");
+    if ($ssl_res && $ssl_row = $ssl_res->fetch_assoc()) {
+        $ssl_cipher = $ssl_row['Value'] ?: 'None (Plain/Local)';
+    }
+
+    // Inspect existing tables
+    $tbl_res = @$conn->query("SHOW TABLES");
+    if ($tbl_res) {
+        while ($r = $tbl_res->fetch_array()) {
+            $tname = $r[0];
+            $cnt_res = @$conn->query("SELECT COUNT(*) FROM `{$tname}`");
+            $cnt = $cnt_res ? $cnt_res->fetch_row()[0] : 0;
+            $existing_tables[$tname] = $cnt;
+        }
+    }
+
+    // Verify admin user
+    if (isset($existing_tables['users'])) {
+        $u_res = @$conn->query("SELECT * FROM users WHERE username = 'admin' LIMIT 1");
+        if ($u_res && $u_res->num_rows > 0) {
+            $admin_verified = true;
+        }
+    }
+} else {
+    $status_msg = "Database Connection Failed: " . $conn_err;
+    $status_type = "danger";
+}
+
+// Handle 1-Click Import
+if ($action === 'import' && $connected) {
+    if (!$sql_dump_path) {
+        $status_msg = "Error: Database dump file (.sql) not found on server.";
+        $status_type = "danger";
+    } else {
+        $sql_content = file_get_contents($sql_dump_path);
+        
+        // Split queries safely
+        $conn->query("SET FOREIGN_KEY_CHECKS = 0;");
+        $conn->query("SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';");
+        
+        $queries = [];
+        $lines = explode("\n", $sql_content);
+        $temp = '';
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '--') || str_starts_with($trimmed, '/*') || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+            $temp .= $line . "\n";
+            if (str_ends_with($trimmed, ';')) {
+                $queries[] = $temp;
+                $temp = '';
+            }
+        }
+        if (!empty(trim($temp))) {
+            $queries[] = $temp;
+        }
+
+        $executed = 0;
+        $errors = [];
+        foreach ($queries as $q) {
+            $q = trim($q);
+            if (!empty($q)) {
+                if ($conn->query($q)) {
+                    $executed++;
+                } else {
+                    $errors[] = $conn->error;
+                }
+            }
+        }
+        
+        $conn->query("SET FOREIGN_KEY_CHECKS = 1;");
+        
+        // Refresh tables list
+        $existing_tables = [];
+        $tbl_res = @$conn->query("SHOW TABLES");
+        if ($tbl_res) {
+            while ($r = $tbl_res->fetch_array()) {
+                $tname = $r[0];
+                $cnt_res = @$conn->query("SELECT COUNT(*) FROM `{$tname}`");
+                $cnt = $cnt_res ? $cnt_res->fetch_row()[0] : 0;
+                $existing_tables[$tname] = $cnt;
+            }
+        }
+        $u_res = @$conn->query("SELECT * FROM users WHERE username = 'admin' LIMIT 1");
+        if ($u_res && $u_res->num_rows > 0) {
+            $admin_verified = true;
+        }
+
+        $import_stats = [
+            'total_queries' => count($queries),
+            'executed' => $executed,
+            'errors' => count($errors),
+            'tables_created' => count($existing_tables)
+        ];
+
+        if (count($errors) === 0) {
+            $status_msg = "Database successfully imported! All tables created & Admin verified.";
+            $status_type = "success";
+        } else {
+            $status_msg = "Database import completed with " . count($errors) . " notices/errors. Tables: " . count($existing_tables);
+            $status_type = "warning";
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aiven Cloud MySQL Database Setup & Health Check</title>
+    <link rel="stylesheet" href="plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="dist/css/adminlte.min.css">
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card { background: #1e293b; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .card-header { background: #0f172a; border-bottom: 1px solid #334155; border-top-left-radius: 12px; border-top-right-radius: 12px; }
+        .form-control { background: #0f172a; border: 1px solid #475569; color: #fff; }
+        .form-control:focus { background: #0f172a; color: #fff; border-color: #3b82f6; }
+        .badge-ssl { background: #059669; color: #fff; }
+        .badge-table { background: #2563eb; color: #fff; }
+        .btn-gradient { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #fff; border: none; font-weight: 600; }
+        .btn-gradient:hover { background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%); color: #fff; }
+        .btn-import { background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #fff; border: none; font-weight: bold; }
+        .btn-import:hover { background: linear-gradient(135deg, #047857 0%, #065f46 100%); color: #fff; }
+        .table { color: #f8fafc; }
+        .table thead th { border-color: #334155; }
+        .table td { border-color: #334155; }
+    </style>
+</head>
+<body class="p-3 p-md-5">
+<div class="container" style="max-width: 950px;">
+
+    <!-- Header Banner -->
+    <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom border-secondary">
+        <div>
+            <h2 class="mb-1 font-weight-bold"><i class="fas fa-database text-primary mr-2"></i>Aiven Cloud Database Setup</h2>
+            <p class="text-muted mb-0">Company Management System &bull; Render Reverse Proxy &bull; PHP 8.2 Compatible</p>
+        </div>
+        <div>
+            <?php if ($connected): ?>
+                <span class="badge badge-success p-2 font-weight-bold"><i class="fas fa-check-circle mr-1"></i> AIVEN CONNECTED</span>
+            <?php else: ?>
+                <span class="badge badge-danger p-2 font-weight-bold"><i class="fas fa-times-circle mr-1"></i> DISCONNECTED</span>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <?php if (!empty($status_msg)): ?>
+        <div class="alert alert-<?php echo $status_type; ?> alert-dismissible fade show">
+            <i class="fas <?php echo $status_type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'; ?> mr-2"></i>
+            <?php echo htmlspecialchars($status_msg); ?>
+        </div>
+    <?php endif; ?>
+
+    <!-- Health Check Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card p-3 text-center">
+                <small class="text-muted text-uppercase">Database Host</small>
+                <div class="font-weight-bold text-truncate mt-1" title="<?php echo htmlspecialchars($db_server); ?>">
+                    <?php echo htmlspecialchars($db_server); ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card p-3 text-center">
+                <small class="text-muted text-uppercase">Port & SSL</small>
+                <div class="font-weight-bold mt-1">
+                    Port: <?php echo $db_port; ?> 
+                    <?php if ($db_ssl): ?>
+                        <span class="badge badge-ssl ml-1">SSL ON</span>
+                    <?php else: ?>
+                        <span class="badge badge-secondary ml-1">SSL OFF</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card p-3 text-center">
+                <small class="text-muted text-uppercase">Database Name</small>
+                <div class="font-weight-bold mt-1 text-primary">
+                    <?php echo htmlspecialchars($db_name); ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card p-3 text-center">
+                <small class="text-muted text-uppercase">Admin Status</small>
+                <div class="font-weight-bold mt-1">
+                    <?php if ($admin_verified): ?>
+                        <span class="text-success"><i class="fas fa-user-check mr-1"></i> Verified (admin)</span>
+                    <?php else: ?>
+                        <span class="text-warning"><i class="fas fa-user-clock mr-1"></i> Not Imported</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Tables & Verification Card -->
+    <?php if ($connected && count($existing_tables) > 0): ?>
+    <div class="card mb-4 border-success">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-success"><i class="fas fa-table mr-2"></i>Existing Database Tables (<?php echo count($existing_tables); ?> Tables)</h5>
+            <span class="badge badge-success p-2">Ready for Live Use</span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <?php foreach ($existing_tables as $tbl => $cnt): ?>
+                    <div class="col-md-4 col-sm-6 mb-2">
+                        <div class="p-2 border rounded border-secondary d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-check text-success mr-2"></i><code><?php echo htmlspecialchars($tbl); ?></code></span>
+                            <span class="badge badge-table"><?php echo $cnt; ?> rows</span>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Credentials Box -->
+            <div class="alert alert-dark border border-secondary mt-3 mb-0">
+                <h6 class="font-weight-bold text-info mb-2"><i class="fas fa-key mr-2"></i>Default Admin Credentials:</h6>
+                <div class="d-flex flex-wrap align-items-center gap-3">
+                    <span class="mr-4">Username: <strong>admin</strong></span>
+                    <span class="mr-4">Password: <strong>admin123</strong></span>
+                    <span class="mr-4">Role: <strong>Administrator (ID: 1)</strong></span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-4 d-flex flex-wrap gap-2">
+                <a href="admin/login.php" class="btn btn-primary btn-lg px-4 mr-2">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Go to Admin Login
+                </a>
+                <a href="index.php" class="btn btn-outline-light btn-lg px-4 mr-2">
+                    <i class="fas fa-globe mr-2"></i>View Public Website
+                </a>
+                <form method="POST" onsubmit="return confirm('Do you want to re-import the SQL dump? This will re-insert default tables.');" style="display:inline-block;">
+                    <input type="hidden" name="action" value="import">
+                    <input type="hidden" name="db_server" value="<?php echo htmlspecialchars($db_server); ?>">
+                    <input type="hidden" name="db_port" value="<?php echo $db_port; ?>">
+                    <input type="hidden" name="db_user" value="<?php echo htmlspecialchars($db_user); ?>">
+                    <input type="hidden" name="db_pass" value="<?php echo htmlspecialchars($db_pass); ?>">
+                    <input type="hidden" name="db_name" value="<?php echo htmlspecialchars($db_name); ?>">
+                    <input type="hidden" name="db_ssl" value="<?php echo $db_ssl ? 'true' : 'false'; ?>">
+                    <button type="submit" class="btn btn-outline-warning btn-lg">
+                        <i class="fas fa-sync-alt mr-1"></i> Re-Import Database
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- 1-Click Import Card (If tables are missing or not full) -->
+    <?php if ($connected && count($existing_tables) < 5): ?>
+    <div class="card mb-4 border-primary">
+        <div class="card-header">
+            <h5 class="mb-0 text-primary"><i class="fas fa-bolt mr-2"></i>1-Click Database Import (.sql Dump)</h5>
+        </div>
+        <div class="card-body">
+            <p>Database is connected but tables need to be created. Click the button below to initialize all tables, default administrator account, and sample data in 1 click.</p>
+            <p class="text-muted"><i class="fas fa-file-code mr-1"></i> Dump file: <code><?php echo htmlspecialchars($sql_dump_path ?: 'Not found'); ?></code></p>
+            
+            <form method="POST">
+                <input type="hidden" name="action" value="import">
+                <input type="hidden" name="db_server" value="<?php echo htmlspecialchars($db_server); ?>">
+                <input type="hidden" name="db_port" value="<?php echo $db_port; ?>">
+                <input type="hidden" name="db_user" value="<?php echo htmlspecialchars($db_user); ?>">
+                <input type="hidden" name="db_pass" value="<?php echo htmlspecialchars($db_pass); ?>">
+                <input type="hidden" name="db_name" value="<?php echo htmlspecialchars($db_name); ?>">
+                <input type="hidden" name="db_ssl" value="<?php echo $db_ssl ? 'true' : 'false'; ?>">
+                
+                <button type="submit" class="btn btn-import btn-lg px-4" <?php echo !$sql_dump_path ? 'disabled' : ''; ?>>
+                    <i class="fas fa-file-import mr-2"></i> Run 1-Click Database Import
+                </button>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Configuration Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-sliders-h mr-2"></i>Database Connection Settings</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small">You can test custom credentials or use the pre-configured environment variables from Render.</p>
+            <form method="POST">
+                <div class="form-row">
+                    <div class="form-group col-md-8">
+                        <label>DB_SERVER (Host)</label>
+                        <input type="text" name="db_server" class="form-control" value="<?php echo htmlspecialchars($db_server); ?>" required>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label>DB_PORT</label>
+                        <input type="number" name="db_port" class="form-control" value="<?php echo $db_port; ?>" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label>DB_USERNAME</label>
+                        <input type="text" name="db_user" class="form-control" value="<?php echo htmlspecialchars($db_user); ?>" required>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label>DB_PASSWORD</label>
+                        <input type="password" name="db_pass" class="form-control" value="<?php echo htmlspecialchars($db_pass); ?>">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-8">
+                        <label>DB_NAME</label>
+                        <input type="text" name="db_name" class="form-control" value="<?php echo htmlspecialchars($db_name); ?>" required>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label>DB_SSL</label>
+                        <select name="db_ssl" class="form-control">
+                            <option value="true" <?php echo $db_ssl ? 'selected' : ''; ?>>Enabled (Required for Aiven Cloud)</option>
+                            <option value="false" <?php echo !$db_ssl ? 'selected' : ''; ?>>Disabled (Localhost / Plain)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-gradient px-4">
+                    <i class="fas fa-sync mr-2"></i>Test & Save Connection
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

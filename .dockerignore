@@ -1,0 +1,5 @@
+.git
+.github
+*.original
+Company_Management_System/
+.dockerignore
