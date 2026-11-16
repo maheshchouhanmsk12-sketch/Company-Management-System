@@ -17,17 +17,50 @@ function redirect($url=''){
 	if(!empty($url))
 	echo '<script>location.href="'.base_url . ltrim($url, '/').'"</script>';
 }
+
+function get_banner_url(){
+    global $_settings;
+    if(isset($_settings)){
+        $banner = $_settings->info('banner');
+        if(!empty($banner) && is_file(base_app . $banner)){
+            return base_url . $banner;
+        }
+    }
+    if(is_file(base_app . 'uploads/1628750220_hd-background.jpg')){
+        return base_url . 'uploads/1628750220_hd-background.jpg';
+    }
+    if(is_file(base_app . 'profile_asset/images/header-background.jpg')){
+        return base_url . 'profile_asset/images/header-background.jpg';
+    }
+    return '';
+}
+
+function get_logo_url(){
+    global $_settings;
+    if(isset($_settings)){
+        $logo = $_settings->info('logo');
+        if(!empty($logo) && is_file(base_app . $logo)){
+            return base_url . $logo;
+        }
+    }
+    if(is_file(base_app . 'uploads/1628731260_logo.jpg')){
+        return base_url . 'uploads/1628731260_logo.jpg';
+    }
+    if(is_file(base_app . 'profile_asset/images/profilepic.jpg')){
+        return base_url . 'profile_asset/images/profilepic.jpg';
+    }
+    return base_url . 'dist/img/AdminLTELogo.png';
+}
+
 function validate_image($file){
 	if(!empty($file)){
-		if(is_file(base_app.$file)){
-			return base_url.$file;
-		}else{
-			return base_url.'dist/img/no-image-available.png';
+		if(is_file(base_app . $file)){
+			return base_url . $file;
 		}
-	}else{
-		return base_url.'dist/img/no-image-available.png';
 	}
+	return base_url . 'dist/img/no-image-available.png';
 }
+
 function isMobileDevice(){
     $aMobileUA = array(
         '/iphone/i' => 'iPhone', 
@@ -38,7 +71,6 @@ function isMobileDevice(){
         '/webos/i' => 'Mobile'
     );
 
-    //Return true if Mobile User Agent is detected
     if(isset($_SERVER['HTTP_USER_AGENT'])){
         foreach($aMobileUA as $sMobileKey => $sMobileOS){
             if(preg_match($sMobileKey, $_SERVER['HTTP_USER_AGENT'])){
@@ -46,7 +78,6 @@ function isMobileDevice(){
             }
         }
     }
-    //Otherwise return false..  
     return false;
 }
 ob_end_flush();

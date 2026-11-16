@@ -11,7 +11,19 @@ class SystemSettings extends DBConnection{
 		return($this->conn);
 	}
 	function load_system_info(){
-		if(!isset($_SESSION['system_info'])){
+		if(!isset($_SESSION['system_info']) || empty($_SESSION['system_info'])){
+			// Clean default fallback info matching actual disk assets
+			$_SESSION['system_info'] = [
+				'name' => 'Company Website',
+				'short_name' => 'Our Company',
+				'welcome_message' => 'We provide high-quality business solutions, digital services, and expert consulting to take your company to the next level.',
+				'logo' => 'uploads/1628731260_logo.jpg',
+				'banner' => 'uploads/1628750220_hd-background.jpg',
+				'address' => '123 Business Avenue, Tech Park',
+				'contact' => '+1 (555) 234-5678',
+				'email' => 'contact@company.com'
+			];
+
 			if(!$this->conn) return false;
 			$sql = "SELECT * FROM system_info";
 			$qry = @$this->conn->query($sql);
@@ -76,7 +88,6 @@ class SystemSettings extends DBConnection{
 		$update = $this->update_system_info();
 		$flash = $this->set_flashdata('success','System Info Successfully Updated.');
 		if($update && $flash){
-			// var_dump($_SESSION);
 			return true;
 		}
 	}
@@ -119,19 +130,26 @@ class SystemSettings extends DBConnection{
 	}
 	function sess_des(){
 		if(isset($_SESSION['userdata'])){
-				unset($_SESSION['userdata']);
+			unset($_SESSION['userdata']);
 			return true;
 		}
-			return true;
+		return true;
 	}
 	function info($field=''){
 		if(!empty($field)){
-			if(isset($_SESSION['system_info'][$field]))
+			if(isset($_SESSION['system_info'][$field]) && $_SESSION['system_info'][$field] !== '')
 				return $_SESSION['system_info'][$field];
-			else
-				return '';
-		}else{
-			return '';
+		}
+		switch($field){
+			case 'name': return 'Company Website';
+			case 'short_name': return 'Our Company';
+			case 'logo': return 'uploads/1628731260_logo.jpg';
+			case 'banner': return 'uploads/1628750220_hd-background.jpg';
+			case 'welcome_message': return 'We provide high-quality business solutions, digital services, and expert consulting to take your company to the next level.';
+			case 'address': return '123 Business Avenue, Tech Park';
+			case 'contact': return '+1 (555) 234-5678';
+			case 'email': return 'contact@company.com';
+			default: return '';
 		}
 	}
 	function set_info($field='',$value=''){
@@ -149,7 +167,6 @@ switch ($action) {
 		echo $sysset->update_settings_info();
 		break;
 	default:
-		// echo $sysset->index();
 		break;
 }
 ?>

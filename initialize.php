@@ -30,14 +30,20 @@ if (!defined('base_url')) {
             $host = $host_parts[0];
         }
 
-        $script_dir = dirname($_SERVER['SCRIPT_NAME'] ?? '');
+        $script_dir = isset($_SERVER['SCRIPT_NAME']) ? dirname($_SERVER['SCRIPT_NAME']) : '';
         $script_dir = str_replace('\\', '/', $script_dir);
         $base = rtrim($script_dir, '/');
+        if ($base === '.' || $base === '/') {
+            $base = '';
+        }
         // Strip trailing admin, classes, etc. if accessed directly
         if (preg_match('#/(admin|classes|inc|dist|plugins|build)(/.*)?$#i', $base)) {
             $base = preg_replace('#/(admin|classes|inc|dist|plugins|build)(/.*)?$#i', '', $base);
         }
-        define('base_url', $proto . '://' . $host . ($base ? $base : '') . '/');
+        if ($base !== '' && $base[0] !== '/') {
+            $base = '/' . $base;
+        }
+        define('base_url', $proto . '://' . $host . $base . '/');
     }
 }
 
