@@ -53,22 +53,28 @@ foreach ($sql_files as $f) {
 
 // Function to connect with Aiven SSL support
 function connect_db($host, $port, $user, $pass, $db, $use_ssl) {
+    mysqli_report(MYSQLI_REPORT_OFF);
     $conn = mysqli_init();
     if (!$conn) {
         return [false, "mysqli_init() failed"];
     }
     $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
     
-    if ($use_ssl) {
-        $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
-        $flags = MYSQLI_CLIENT_SSL;
-        $res = @$conn->real_connect($host, $user, $pass, $db, $port, NULL, $flags);
-        if (!$res) {
-            // Fallback attempt
+    $res = false;
+    try {
+        if ($use_ssl) {
+            $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+            $flags = MYSQLI_CLIENT_SSL;
+            $res = @$conn->real_connect($host, $user, $pass, $db, $port, NULL, $flags);
+            if (!$res) {
+                // Fallback attempt
+                $res = @$conn->real_connect($host, $user, $pass, $db, $port);
+            }
+        } else {
             $res = @$conn->real_connect($host, $user, $pass, $db, $port);
         }
-    } else {
-        $res = @$conn->real_connect($host, $user, $pass, $db, $port);
+    } catch (\Throwable $e) {
+        return [false, $e->getMessage()];
     }
     
     if (!$res) {

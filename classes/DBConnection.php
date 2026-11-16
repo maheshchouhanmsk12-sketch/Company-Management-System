@@ -37,6 +37,9 @@ class DBConnection{
     }
 
     public function connect(){
+        // Disable mysqli throwing unhandled exceptions in PHP 8.1+
+        mysqli_report(MYSQLI_REPORT_OFF);
+
         $conn = mysqli_init();
         if(!$conn){
             $this->error = "mysqli_init failed";
@@ -46,21 +49,29 @@ class DBConnection{
 
         $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 10);
 
-        if($this->ssl){
-            // Aiven Cloud MySQL SSL requirement (require_secure_transport=ON)
-            $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
-            $flags = MYSQLI_CLIENT_SSL;
-            $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port, NULL, $flags);
-            if(!$connected){
-                // Fallback attempt without SSL flag if provider allows
+        $connected = false;
+        try {
+            if($this->ssl){
+                // Aiven Cloud MySQL SSL requirement (require_secure_transport=ON)
+                $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+                $flags = MYSQLI_CLIENT_SSL;
+                $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port, NULL, $flags);
+                if(!$connected){
+                    // Fallback attempt without SSL flag if provider allows
+                    $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
+                }
+            } else {
                 $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
             }
-        } else {
-            $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
+        } catch (\Throwable $e) {
+            $connected = false;
+            $this->error = $e->getMessage();
         }
 
         if(!$connected){
-            $this->error = mysqli_connect_error();
+            if(!$this->error) {
+                $this->error = mysqli_connect_error();
+            }
             error_log("DBConnection Error: " . $this->error);
             $this->conn = false;
             return false;
