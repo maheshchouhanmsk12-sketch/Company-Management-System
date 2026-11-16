@@ -11,26 +11,33 @@ class SystemSettings extends DBConnection{
 		return($this->conn);
 	}
 	function load_system_info(){
-		if(!isset($_SESSION['system_info']) || empty($_SESSION['system_info'])){
-			// Clean default fallback info matching actual disk assets
-			$_SESSION['system_info'] = [
-				'name' => 'Company Website',
-				'short_name' => 'Our Company',
-				'welcome_message' => 'We provide high-quality business solutions, digital services, and expert consulting to take your company to the next level.',
-				'logo' => 'uploads/1628731260_logo.jpg',
-				'banner' => 'uploads/1628750220_hd-background.jpg',
-				'address' => '123 Business Avenue, Tech Park',
-				'contact' => '+1 (555) 234-5678',
-				'email' => 'contact@company.com'
-			];
+		// Clean default fallback info matching actual disk assets
+		$defaults = [
+			'name' => 'Company Management System',
+			'short_name' => 'Company CMS',
+			'welcome_message' => 'We provide high-quality business solutions, digital services, and expert consulting to take your company to the next level.',
+			'logo' => 'uploads/1628731260_logo.jpg',
+			'banner' => 'uploads/1628750220_hd-background.jpg',
+			'address' => '123 Business Avenue, Tech Park',
+			'contact' => '+1 (555) 234-5678',
+			'email' => 'contact@company.com'
+		];
 
-			if(!$this->conn) return false;
-			$sql = "SELECT * FROM system_info";
-			$qry = @$this->conn->query($sql);
-			if($qry && $qry instanceof mysqli_result){
-				while($row = $qry->fetch_assoc()){
-					$_SESSION['system_info'][$row['meta_field']] = $row['meta_value'];
-				}
+		if(!isset($_SESSION['system_info']) || !is_array($_SESSION['system_info'])){
+			$_SESSION['system_info'] = $defaults;
+		}
+
+		// Purge any stale Real Estate data from session
+		if(isset($_SESSION['system_info']['name']) && strpos($_SESSION['system_info']['name'], 'Real Estate') !== false){
+			$_SESSION['system_info'] = $defaults;
+		}
+
+		if(!$this->conn) return false;
+		$sql = "SELECT * FROM system_info";
+		$qry = @$this->conn->query($sql);
+		if($qry && $qry instanceof mysqli_result && $qry->num_rows > 0){
+			while($row = $qry->fetch_assoc()){
+				$_SESSION['system_info'][$row['meta_field']] = $row['meta_value'];
 			}
 		}
 	}
@@ -137,12 +144,16 @@ class SystemSettings extends DBConnection{
 	}
 	function info($field=''){
 		if(!empty($field)){
-			if(isset($_SESSION['system_info'][$field]) && $_SESSION['system_info'][$field] !== '')
+			if(isset($_SESSION['system_info'][$field]) && $_SESSION['system_info'][$field] !== ''){
+				if($field === 'name' && strpos($_SESSION['system_info'][$field], 'Real Estate') !== false){
+					return 'Company Management System';
+				}
 				return $_SESSION['system_info'][$field];
+			}
 		}
 		switch($field){
-			case 'name': return 'Company Website';
-			case 'short_name': return 'Our Company';
+			case 'name': return 'Company Management System';
+			case 'short_name': return 'Company CMS';
 			case 'logo': return 'uploads/1628731260_logo.jpg';
 			case 'banner': return 'uploads/1628750220_hd-background.jpg';
 			case 'welcome_message': return 'We provide high-quality business solutions, digital services, and expert consulting to take your company to the next level.';
