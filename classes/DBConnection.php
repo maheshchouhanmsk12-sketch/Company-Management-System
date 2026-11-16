@@ -69,19 +69,31 @@ class DBConnection{
         // Fast 4-second timeout to avoid page stalls if remote host is unreachable
         $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 4);
 
+        $passwords_to_try = [$this->password];
+        // Auto-correct common font/OCR typo (digit 1 vs lowercase l in Aiven password)
+        if (strpos($this->password, 'GL1TT8') !== false) {
+            $passwords_to_try[] = str_replace('GL1TT8', 'GLlTT8', $this->password);
+        }
+
         $connected = false;
-        try {
-            if($this->ssl){
-                // Aiven Cloud MySQL SSL requirement (require_secure_transport=ON)
-                $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
-                $flags = MYSQLI_CLIENT_SSL;
-                $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port, NULL, $flags);
-            } else {
-                $connected = @$conn->real_connect($this->host, $this->username, $this->password, $this->database, $this->port);
+        foreach ($passwords_to_try as $pwd) {
+            try {
+                if($this->ssl){
+                    // Aiven Cloud MySQL SSL requirement (require_secure_transport=ON)
+                    $conn->ssl_set(NULL, NULL, NULL, NULL, NULL);
+                    $flags = MYSQLI_CLIENT_SSL;
+                    $connected = @$conn->real_connect($this->host, $this->username, $pwd, $this->database, $this->port, NULL, $flags);
+                } else {
+                    $connected = @$conn->real_connect($this->host, $this->username, $pwd, $this->database, $this->port);
+                }
+                if ($connected) {
+                    $this->password = $pwd;
+                    break;
+                }
+            } catch (\Throwable $e) {
+                $connected = false;
+                $this->error = $e->getMessage();
             }
-        } catch (\Throwable $e) {
-            $connected = false;
-            $this->error = $e->getMessage();
         }
 
         if(!$connected){
